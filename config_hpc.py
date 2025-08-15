@@ -37,9 +37,32 @@ def setup_config():
             'samples_per_volume': 20,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
+            'loss': 'tversky_focal',
+            'gradient_clip': 1.0,
             'num_workers': 12,
             'pin_memory': True,
             'mixed_precision': True,
+        },
+        'loss_specs': {
+            'wdice_weights': [1.0, 2.0],
+            'wdice_smooth': 1e-7,
+            'focal_alpha': 0.25,
+            'focal_gamma': 2.0,
+            'hard_neg_focal_ratio': 2.0,
+            'tversky_focal_alpha': 0.3,
+            'tversky_focal_beta': 0.7,
+            'tversky_focal_gamma': 2.0,
+            'tversky_focal_smooth': 1e-7,
+        },
+        'optimization': {
+            'early_stopping_patience': 20,
+            'min_delta': 0.001,
+            'weight_decay': 1e-4
+        },
+        'scheduler': {
+            'mode': 'min',
+            'factor': 0.5,
+            'patience': 15
         },
         'data': {
             'voxel_size_nm': 650,

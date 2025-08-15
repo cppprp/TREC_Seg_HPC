@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 import sys
 from pathlib import Path
+
+from sympy.abc import alpha
+
 script_dir = Path(__file__).parent.absolute()
 if str(script_dir) not in sys.path:
     sys.path.insert(0, str(script_dir))
@@ -165,6 +168,21 @@ class FocalLossWithHardNegatives(torch.nn.Module):
                     total_loss += hard_neg_penalty
 
         return total_loss / predictions.shape[1]
+def create_loss_type(config):
+    if config['training']['loss'] == 'wdice':
+        return WeightedDiceLoss(weights=config['loss_specs']['wdice_weights'], smooth=config['loss_specs']['wdice_smooth'])
+    elif config['training']['loss'] == 'focal':
+        return FocalLoss(alpha=config['loss_specs']['focal_alpha'], gamma=config['loss_specs']['focal_gamma'])
+    elif config['training']['loss'] == 'tversky_focal':
+        return TverskyFocalLoss(alpha=config['loss_specs']['tversky_focal_alpha'], beta=config['loss_specs']['tversky_focal_beta'],
+                                gamma=config['loss_specs']['tversky_focal_gamma'],
+                                smooth=config['loss_specs']['tversky_focal_smooth'])
+    elif config['training']['loss'] == 'hard_neg_focal':
+        return FocalLossWithHardNegatives(alpha=config['loss_specs']['focal_alpha'], gamma=config['loss_specs']['focal_gamma'],
+                                          hard_neg_ratio=config['loss_specs']['hard_neg_focal_ratio'])
+    else:
+        print ('Loss unknown, defaulting to focal loss')
+        return FocalLoss(alpha=config['loss_specs']['focal_alpha'], gamma=config['loss_specs']['focal_gamma'])
 
 class EarlyStopping:
     def __init__(self, patience=20, min_delta=0.001, restore_best_weights=True):

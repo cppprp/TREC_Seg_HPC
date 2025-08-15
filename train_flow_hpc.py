@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+from model_hpc import create_loss_type
+
 script_dir = Path(__file__).parent.absolute()
 if str(script_dir) not in sys.path:
     sys.path.insert(0, str(script_dir))
@@ -34,7 +36,7 @@ def main():
         import json
         import wandb
         from dataset_hpc import load_and_prepare_data, create_aggressive_transforms, PlanktonDataset
-        from model_hpc import WeightedDiceLoss
+        from model_hpc import WeightedDiceLoss, TverskyFocalLoss, FocalLossWithHardNegatives, FocalLoss
         from train_epoch_hpc import run_enhanced_training_loop
 
         print("✅ All modules imported successfully")
@@ -160,16 +162,16 @@ def main():
         print(f"🧠 Model parameters: {total_params:,}")
 
         # Loss and optimizer
-        loss_fn = WeightedDiceLoss(weights=[1.0, 2.0])
+        loss_fn = create_loss_type(config)
 
         optimizer = torch.optim.AdamW(
             model.parameters(),
             lr=config['training']['learning_rate'],
-            weight_decay=1e-4
+            weight_decay=config['optimization']['weight_decay']
         )
 
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-            optimizer, mode='min', factor=0.5, patience=15, verbose=True
+            optimizer, mode=config['scheduler']['mode'], factor=config['scheduler']['factor'], patience=config['scheduler']['patience'], verbose=True
         )
 
         print("✅ Model, loss, and optimizer ready")

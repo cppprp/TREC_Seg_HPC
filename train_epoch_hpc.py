@@ -55,7 +55,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     metrics_calculator = ComprehensiveMetrics()
     early_stopping = EarlyStopping(
         patience=config['optimization']['early_stopping_patience'],
-        min_delta=0.001
+        min_delta=config['optimization']['min_delta']
     )
     best_val_dice = 0.0
 
@@ -73,7 +73,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     print(f"   Mixed Precision: Enabled")
     print(f"   Early Stopping Patience: {config['optimization']['early_stopping_patience']}")
     print(f"   Checkpointing every: {config['training']['checkpoint_every']} epochs")
-    print(f"   Learning rate patience: {config['optimization']['lr_scheduler_patience']}")
+    print(f"   Learning rate patience: {config['scheduler']['patience']}")
 
     for epoch in tqdm(range(n_epochs), desc='HPC Training Progress', ncols=100):
         epoch_start_time = time.time()
