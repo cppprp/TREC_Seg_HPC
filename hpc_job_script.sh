@@ -31,7 +31,8 @@ echo "   Python: $(which python)"
 echo "   Python version: $(python --version)"
 
 echo "📁 Changing to code directory..."
-cd /home/asvetlove/code
+cd /home/asvetlove/TREC_Seg/code
+
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export OMP_NUM_THREADS=12

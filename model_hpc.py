@@ -2,8 +2,6 @@
 import sys
 from pathlib import Path
 
-from sympy.abc import alpha
-
 script_dir = Path(__file__).parent.absolute()
 if str(script_dir) not in sys.path:
     sys.path.insert(0, str(script_dir))
