@@ -500,17 +500,17 @@ def parse_arguments():
                         help="Base home directory")
     parser.add_argument("--username",
                         help="Username (default: from environment)")
-    parser.add_argument("--num-threads", type=int,
-                        help="Number of I/O threads (default: auto)")
+    parser.add_argument("--num-threads", type=int, metavar="N",
+                        help="Number of I/O threads (default: auto-detect from OMP_NUM_THREADS or CPU cores)")
     parser.add_argument("--output-format", choices=["tiff", "h5"], default="tiff",
                         help="Output format")
     parser.add_argument("--no-compression", action="store_true",
                         help="Disable compression")
 
     # GPU optimization
-    parser.add_argument("--block-shape", type=int, nargs=3,
+    parser.add_argument("--block-shape", type=int, nargs=3, metavar=("Z", "Y", "X"),
                         help="Custom block shape (z y x)")
-    parser.add_argument("--halo", type=int, nargs=3,
+    parser.add_argument("--halo", type=int, nargs=3, metavar=("Z", "Y", "X"),
                         help="Custom halo size (z y x)")
 
     # Logging and debugging
@@ -550,6 +550,17 @@ def main():
         # Apply command line overrides
         if args.num_threads:
             config.num_io_threads = args.num_threads
+        else:
+            # Auto-detect optimal number of I/O threads
+            # Use OMP_NUM_THREADS if set, otherwise use CPU count
+            omp_threads = os.environ.get('OMP_NUM_THREADS')
+            if omp_threads:
+                config.num_io_threads = min(int(omp_threads), os.cpu_count() or 8)
+                logger.info(f"Using OMP_NUM_THREADS for I/O: {config.num_io_threads}")
+            else:
+                config.num_io_threads = min(8, os.cpu_count() or 8)
+                logger.info(f"Auto-detected I/O threads: {config.num_io_threads}")
+
         config.output_format = args.output_format
         config.compression = not args.no_compression
 
