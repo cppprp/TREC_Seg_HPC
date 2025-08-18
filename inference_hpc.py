@@ -359,8 +359,7 @@ def predict_volume_hpc(volume: np.ndarray, model: torch.nn.Module,
             halo=config.halo,
             mask=mask,
             postprocess=sigmoid_postprocess,
-            preprocess=None,
-            verbose=True
+            preprocess=None
         )
 
         return prediction[0], prediction[1]  # foreground, boundaries
@@ -382,8 +381,7 @@ def predict_volume_hpc(volume: np.ndarray, model: torch.nn.Module,
                 halo=config.halo,
                 mask=mask,
                 postprocess=sigmoid_postprocess,
-                preprocess=None,
-                verbose=True
+                preprocess=None
             )
 
             config.block_shape = original_block  # Restore for next volume
