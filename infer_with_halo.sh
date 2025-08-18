@@ -1,14 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name=plankton_inference
-#SBATCH --output=/scratch/%u/logs/inference_%j.out
-#SBATCH --error=/scratch/%u/logs/inference_%j.err
+#SBATCH --job-name=plankton_hpc
+#SBATCH --partition=gpu-el8
+#SBATCH --constraint=gpu=A100
+#SBATCH --nodes=1
+#SBATCH --ntasks=14
+#SBATCH --gpus=1
+#SBATCH --mem-per-gpu=128789
 #SBATCH --time=04:00:00
-#SBATCH --partition=gpu
-#SBATCH --gres=gpu:a100:1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
-#SBATCH --mail-type=BEGIN,END,FAIL
-#SBATCH --mail-user=your.email@domain.com
+#SBATCH --output=logs/inference_%j.out
+#SBATCH --error=logs/inference_%j.err
 
 # Configuration - UPDATE THESE VALUES
 JOB_ID="35779375"                                    # Your training job ID
