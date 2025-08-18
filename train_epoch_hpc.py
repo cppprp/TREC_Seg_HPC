@@ -251,13 +251,13 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
             print(f"💾 Checkpoint saved at epoch {epoch}")
 
         # Comprehensive progress reporting
-        print(f'\n📊 Epoch {epoch + 1}/{n_epochs} Results:')
-        print(f'  Time: {epoch_time:.1f}s (avg batch: {avg_batch_time * 1000:.1f}ms)')
-        print(f'  Loss - Train: {epoch_train_loss:.4f}, Val: {epoch_val_loss:.4f}')
-        print(
-            f'  Dice - Train: {train_avg_metrics["dice"]:.4f}, Val: {val_avg_metrics["dice"]:.4f} (Best: {best_val_dice:.4f})')
-        print(f'  IoU  - Train: {train_avg_metrics["iou"]:.4f}, Val: {val_avg_metrics["iou"]:.4f}')
-        print(f'  LR: {optimizer.param_groups[0]["lr"]:.2e}, GPU: {torch.cuda.memory_allocated() / 1e9:.1f}GB')
+        #print(f'\n📊 Epoch {epoch + 1}/{n_epochs} Results:')
+        #print(f'  Time: {epoch_time:.1f}s (avg batch: {avg_batch_time * 1000:.1f}ms)')
+        #print(f'  Loss - Train: {epoch_train_loss:.4f}, Val: {epoch_val_loss:.4f}')
+        #print(
+        #    f'  Dice - Train: {train_avg_metrics["dice"]:.4f}, Val: {val_avg_metrics["dice"]:.4f} (Best: {best_val_dice:.4f})')
+        #print(f'  IoU  - Train: {train_avg_metrics["iou"]:.4f}, Val: {val_avg_metrics["iou"]:.4f}')
+        #print(f'  LR: {optimizer.param_groups[0]["lr"]:.2e}, GPU: {torch.cuda.memory_allocated() / 1e9:.1f}GB')
 
         # Comprehensive wandb logging
         try:
