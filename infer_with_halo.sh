@@ -13,7 +13,7 @@
 # Configuration - UPDATE THESE VALUES
 JOB_ID="35779375"                                    # Your training job ID
 VOLUME_PATH="/scratch/asvetlove/inference_examples/POR_20to200_20231022_PM_01_epo_02/tomo"                # Volume to process
-MASK_PATH="/scratch/asvetlove/inference_examples/mask.tif"               # Optional mask
+MASK_PATH="/scratch/asvetlove/inference_examples/Mask.tif"               # Optional mask
 DATASET_NAME="POR_20to200_20231022_PM_01_epo_02"                    # Optional dataset name
 
 # Optional processing parameters
