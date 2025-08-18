@@ -45,7 +45,7 @@ echo "SLURM_JOB_NODELIST: $SLURM_JOB_NODELIST"
 cd /home/asvetlove/TREC_Seg/code/
 
 # Build command with optional parameters
-CMD="python inference_hpc_improved.py $JOB_ID \"$VOLUME_PATH\""
+CMD="python inference_hpc.py $JOB_ID \"$VOLUME_PATH\""
 
 if [ ! -z "$MASK_PATH" ]; then
     CMD="$CMD --mask-path \"$MASK_PATH\""
