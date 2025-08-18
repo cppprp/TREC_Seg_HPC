@@ -42,7 +42,7 @@ echo "SLURM_JOB_ID: $SLURM_JOB_ID"
 echo "SLURM_JOB_NODELIST: $SLURM_JOB_NODELIST"
 
 # Navigate to script directory
-cd /home/asvetlove/code/
+cd /home/asvetlove/TREC_Seg/code/
 
 # Build command with optional parameters
 CMD="python inference_hpc_improved.py $JOB_ID \"$VOLUME_PATH\""
