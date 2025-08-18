@@ -288,7 +288,7 @@ def load_trained_model(checkpoint_path, config_path=None, device='cuda'):
     )
 
     # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location=device)
+    checkpoint = torch.load(checkpoint_path, map_location=device, weights_only=False)
 
     # Handle different checkpoint formats
     if 'model_state_dict' in checkpoint:
