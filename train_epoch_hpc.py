@@ -331,7 +331,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
         'hpc_node': config['hpc']['node_name'],
     }
 
-    final_history['training_summary'] = training_summary
+    final_history = make_json_serializable(final_history)
 
     with open(save_dir / 'hpc_training_history.json', 'w') as f:
         json.dump(final_history, f, indent=2)
@@ -349,7 +349,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
         'final_val_dice': val_avg_metrics['dice'],
     }
     torch.save(final_checkpoint, save_dir / 'final_model.pth')
-
+    final_history['training_summary'] = final_history
     print(f"\n✅ HPC training loop completed successfully!")
     print(f"📊 Training Summary:")
     for key, value in training_summary.items():

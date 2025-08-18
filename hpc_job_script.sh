@@ -26,6 +26,8 @@ eval "$(mamba shell hook --shell bash)"
 source /home/asvetlove/miniforge3/bin/activate
 mamba activate trec_seg
 
+export CUDA_VISIBLE_DEVICES=$SLURM_LOCALID
+
 echo "✅ Environment activated:"
 echo "   Python: $(which python)"
 echo "   Python version: $(python --version)"

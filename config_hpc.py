@@ -33,7 +33,7 @@ def setup_config():
             'batch_size': 6,  # Optimized for A100
             'learning_rate': 1e-4,
             'n_epochs': 200,
-            'patch_shape': (96, 96, 96),
+            'patch_shape': (128, 128, 128),
             'samples_per_volume': 20,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
