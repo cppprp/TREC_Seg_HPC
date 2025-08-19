@@ -79,7 +79,38 @@ def load_tif_stack_optimized(volume_path, start_slice=None, num_slices=None, bit
 
     return volume
 
+def load_tif_stack(input_folder, start=None, chunk=None, bit=16):
+    """Load TIFF stack with memory monitoring"""
+    data = []
+    exclusion_criteria = ['pre', '._', '.DS', 'overlaps']
 
+    file_names = os.listdir(input_folder)
+    fnames = sorted([file for file in file_names if
+                     not any(exclude_str in file for exclude_str in exclusion_criteria) and file.endswith('.tif')])
+
+    if start is None:
+        start = 0
+    if chunk is None:
+        chunk = len(fnames)
+
+    fnames = fnames[start:start + chunk]
+    print(f"Loading {len(fnames)} TIFF files...")
+
+    for fname in tqdm(fnames, desc=f"Loading data from {input_folder}"):
+        image_path = os.path.join(input_folder, fname)
+        data.append(tifffile.imread(image_path))
+
+    if bit == 32:
+        data = np.asarray(data, dtype='float32')
+    elif bit == 16:
+        data = np.asarray(data, dtype='uint16')
+    elif bit == 8:
+        data = np.asarray(data, dtype='uint8')
+
+    print(f"Loaded volume shape: {data.shape}")
+    print(f"Volume memory usage: {data.nbytes / 1e9:.2f} GB")
+
+    return data
 def save_tiff_stack_parallel(data, output_path, prefix, num_threads=8):
     """
     Optimized parallel TIFF stack writing
@@ -196,10 +227,10 @@ def main():
 
     # Load volume
     start_time = time.time()
-    volume = load_tif_stack_optimized(
+    volume = load_tif_stack(
         args.volume_path,
-        start_slice=args.start_slice,
-        num_slices=args.num_slices
+        start=args.start_slice,
+        chunk=args.num_slices, bit = 32
     )
     load_time = time.time() - start_time
     print(f"📊 Volume loaded in {load_time:.1f}s")
@@ -232,8 +263,7 @@ def main():
         halo=halo,
         mask=mask,
         postprocess=sigmoid_postprocess,
-        preprocess=None,
-        verbose=True
+        preprocess=None
     )
     inference_time = time.time() - start_time
 
