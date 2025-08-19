@@ -71,7 +71,7 @@ class FocalLoss(torch.nn.Module):
             pred_i = inputs[:, i].flatten()
             target_i = targets[:, i].flatten()
 
-            bce = F.binary_cross_entropy(pred_i, target_i, reduction='none')
+            bce = F.binary_cross_entropy_with_logits(pred_i, target_i, reduction='none')
             pt = torch.where(target_i == 1, pred_i, 1 - pred_i)
             focal_weight = self.alpha * (1 - pt) ** self.gamma
 

@@ -31,13 +31,13 @@ def setup_config():
         },
         'training': {
             'batch_size': 6,  # Optimized for A100
-            'learning_rate': 1e-4,
+            'learning_rate': 3e-5,
             'n_epochs': 200,
             'patch_shape': (128, 128, 128),
             'samples_per_volume': 20,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
-            'loss': 'tversky_focal',
+            'loss': 'focal',
             'gradient_clip': 1.0,
             'num_workers': 12,
             'pin_memory': True,
@@ -46,8 +46,8 @@ def setup_config():
         'loss_specs': {
             'wdice_weights': [1.0, 2.0],
             'wdice_smooth': 1e-7,
-            'focal_alpha': 0.25,
-            'focal_gamma': 2.0,
+            'focal_alpha': 0.22733153821514615,
+            'focal_gamma': 3,
             'hard_neg_focal_ratio': 2.0,
             'tversky_focal_alpha': 0.3,
             'tversky_focal_beta': 0.7,
@@ -67,7 +67,7 @@ def setup_config():
         'data': {
             'voxel_size_nm': 650,
             'plankton_size_um': (20, 200),
-            'min_foreground_ratio': 0.1,
+            'min_foreground_ratio': 0.2,
             'normalisation_min': -0.01,
             'normalisation_max': 0.025,
         },
