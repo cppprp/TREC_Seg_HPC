@@ -9,10 +9,10 @@
 #SBATCH --time=04:00:00
 #SBATCH --output=logs/inference_%j.out
 #SBATCH --error=logs/inference_%j.err
-
-# Configuration - UPDATE THESE VALUES
-JOB_ID="35779375"                                    # Your training job ID
-VOLUME_PATH="/scratch/asvetlove/inference_examples/POR_20to200_20231022_PM_01_epo_02/tomo"                # Volume to process
+set -o pipefail # should help with getting the correct return
+# Configuration
+JOB_ID="35779375"
+VOLUME_PATH="/scratch/asvetlove/inference_examples/POR_20to200_20231022_PM_01_epo_02/tomo"
 MASK_PATH="/scratch/asvetlove/inference_examples/Mask.tif"               # Optional mask
 DATASET_NAME="POR_20to200_20231022_PM_01_epo_02"                    # Optional dataset name
 
@@ -130,11 +130,6 @@ eval $CMD 2>&1 | tee logs/inference_${SLURM_JOB_ID}.log
 
 # Check exit status
 exit_code=$?
-echo ""
-echo "===================="
-echo "🏁 INFERENCE COMPLETED"
-echo "===================="
-
 if [ $exit_code -eq 0 ]; then
     echo "✅ Inference completed successfully!"
 
