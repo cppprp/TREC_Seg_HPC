@@ -13,7 +13,7 @@ import time
 import gc
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-
+import torch
 import numpy as np
 import tifffile
 from torch_em.util.prediction import predict_with_halo
@@ -146,9 +146,13 @@ def save_tiff_stack_parallel(data, output_path, prefix, num_threads=8):
 
 
 def sigmoid_postprocess(prediction):
-    """Apply sigmoid activation and convert to numpy"""
-    import torch
-    return torch.sigmoid(prediction).cpu().numpy()
+    """Apply sigmoid to convert logits to probabilities"""
+    if isinstance(prediction, torch.Tensor):
+        prediction = torch.sigmoid(prediction)
+    else:
+        # If numpy array, convert to torch, apply sigmoid, convert back
+        prediction = torch.sigmoid(torch.from_numpy(prediction)).numpy()
+    return prediction
 
 
 def main():
