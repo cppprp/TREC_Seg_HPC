@@ -19,9 +19,13 @@ DATASET_NAME="POR_20to200_20231022_PM_01_epo_02"                    # Optional d
 # Optional processing parameters
 START_SLICE="300"                                    # Starting slice (leave empty for full volume)
 NUM_SLICES="470"                                     # Number of slices (leave empty for all)
-NORMALIZE="--normalize"                           # Add --normalize flag or leave empty
 NORM_MIN="-0.01"                                  # Normalization minimum
 NORM_MAX="0.025"                                  # Normalization maximum
+
+# Prediction parameters (adjust these based on your GPU memory)
+BLOCK_SHAPE="128 128 128"                           # Block shape for prediction
+HALO="32 32 32"                                     # Halo size
+NUM_THREADS="8"                                     # Number of I/O threads
 
 # Create logs directory
 mkdir -p logs
@@ -51,6 +55,10 @@ cd /home/asvetlove/TREC_Seg/code
 # Set threading environment (same as training)
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export OMP_NUM_THREADS=12
+
+# Add GPU memory management
+export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+export CUDA_LAUNCH_BLOCKING=1
 
 # Create necessary directories
 mkdir -p /scratch/$USER/logs
@@ -90,12 +98,13 @@ if [ ! -z "$NUM_SLICES" ]; then
     CMD="$CMD --num-slices $NUM_SLICES"
 fi
 
-if [ ! -z "$NORMALIZE" ]; then
-    CMD="$CMD $NORMALIZE --norm-min $NORM_MIN --norm-max $NORM_MAX"
-fi
+# Always apply normalization with custom min/max
+CMD="$CMD --norm-min $NORM_MIN --norm-max $NORM_MAX"
 
-# Add logging (but no manual threading - let Python auto-detect)
-CMD="$CMD --verbose"
+# Add prediction parameters
+CMD="$CMD --block-shape $BLOCK_SHAPE"
+CMD="$CMD --halo $HALO"
+CMD="$CMD --num-threads $NUM_THREADS"
 
 echo ""
 echo "📋 Configuration:"
@@ -105,7 +114,10 @@ echo "  Mask: ${MASK_PATH:-'None'}"
 echo "  Dataset: $DATASET_NAME"
 echo "  Start slice: ${START_SLICE:-'0'}"
 echo "  Num slices: ${NUM_SLICES:-'All'}"
-echo "  Normalize: ${NORMALIZE:-'No'}"
+echo "  Normalization: [$NORM_MIN, $NORM_MAX]"
+echo "  Block shape: $BLOCK_SHAPE"
+echo "  Halo: $HALO"
+echo "  I/O Threads: $NUM_THREADS"
 echo "  OMP Threads: $OMP_NUM_THREADS"
 echo ""
 echo "🚀 STARTING INFERENCE"
