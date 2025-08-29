@@ -86,7 +86,7 @@ def setup_config():
             'log_model': True,
         },
         'logging': {
-            'log_images': True,
+            'log_images': False,
             'val_log_frequency': 10,
             'progress_log_frequency': 10,
             'num_samples_per_log': 2,

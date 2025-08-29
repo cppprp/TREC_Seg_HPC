@@ -244,7 +244,6 @@ def main():
         summary_file = Path(config['paths']['logs']) / 'training_summary.json'
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2)
-        diagnose_logit_ranges(model, )
         # Final wandb log
         if use_wandb:
             wandb.log(summary)
