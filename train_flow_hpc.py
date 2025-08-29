@@ -195,7 +195,7 @@ def main():
             optimizer, mode=config['scheduler']['mode'], factor=config['scheduler']['factor'], patience=config['scheduler']['patience'], verbose=True
         )
 
-        print("✅ Model, loss, and optimizer ready")
+        print(f"✅ Model, loss {config['training']['loss']}, and optimizer ready")
 
         # Start training
         print("🚀 Starting training...")
