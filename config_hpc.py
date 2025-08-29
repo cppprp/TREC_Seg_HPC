@@ -38,7 +38,7 @@ def setup_config():
             'samples_per_volume': 20,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
-            'loss': 'focal',
+            'loss': 'combined',
             'gradient_clip': 1.0,
             'num_workers': 12,
             'pin_memory': True,
