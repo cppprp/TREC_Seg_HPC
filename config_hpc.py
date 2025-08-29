@@ -30,7 +30,7 @@ def setup_config():
             'final_activation': None
         },
         'training': {
-            'batch_size': 6,  # Optimized for A100
+            'batch_size': 4,  # Optimized for A100
             'learning_rate': 3e-5,
             'n_epochs': 200,
             'patch_shape': (128, 128, 128),

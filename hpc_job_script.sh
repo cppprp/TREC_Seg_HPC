@@ -12,7 +12,7 @@
 
 # Create logs directory
 mkdir -p logs
-
+set -o pipefail
 echo "🚀 HPC Plankton Segmentation Job Started"
 echo "========================================"
 echo "Job ID: $SLURM_JOB_ID"
@@ -46,7 +46,10 @@ echo "========================"
 python train_flow_hpc.py 2>&1 | tee logs/training_${SLURM_JOB_ID}.log
 
 
-echo ""
-echo "========================"
-echo "🏁 TRAINING COMPLETED"
-echo "========================"
+exit_code=$?
+if [ $exit_code -eq 0 ]; then
+    echo ""
+    echo "========================"
+    echo "✅ TRAINING COMPLETED"
+    fi
+
