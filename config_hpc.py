@@ -19,7 +19,7 @@ def setup_config():
 
     # Everything on scratch for speed
     scratch_base = "/scratch/asvetlove"
-    training_data = "/home/asvetlove/PycharmProjects/TREC_seg_unet/data/ml_patches/" #f"{scratch_base}/ML_training_data"
+    training_data = f"{scratch_base}/ML_training_data"
     results_dir = f"{scratch_base}/plankton_results/job_{job_id}"
 
     config = {
