@@ -212,7 +212,7 @@ class CombinedLoss(torch.nn.Module):
             target_i = targets[:, i].flatten()
 
             # Binary cross entropy with focal weighting
-            bce = F.binary_cross_entropy(pred_i, target_i, reduction='none')
+            bce = F.binary_cross_entropy_with_logits(pred_i, target_i, reduction='none')
             pt = torch.where(target_i == 1, pred_i, 1 - pred_i)
             focal_weight = self.focal_alpha * (1 - pt) ** self.focal_gamma
             focal_loss += (focal_weight * bce).mean()
