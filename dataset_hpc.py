@@ -90,45 +90,62 @@ class PlanktonDataset(Dataset):
         return valid_locations
 
     def __getitem__(self, index):
-        """Skip to next volume if current has no valid patches"""
+        """Modified to extract patches with halo context"""
         vol_idx = index // self.samples_per_volume
+        halo = 32  # Match inference halo size
 
-        # Find a volume with valid locations
+        # Find a volume with valid locations (keep existing logic)
         attempts = 0
         max_attempts = len(self.valid_locations)
 
         while attempts < max_attempts:
             locations = self.valid_locations[vol_idx]
-
-            # If this volume has valid patches, use it
             if locations:
                 break
-
-            # Otherwise try next volume
             vol_idx = (vol_idx + 1) % len(self.valid_locations)
             attempts += 1
 
-        # If no volumes have valid patches (shouldn't happen), raise error
         if not locations:
             raise RuntimeError("No volumes with valid patches found!")
 
-        # Weighted sampling based on foreground content
+        # Sample location (keep existing weighted sampling)
         weights = np.array([loc[3] + 0.1 for loc in locations])
         weights = weights / np.sum(weights)
-
         chosen_idx = np.random.choice(len(locations), p=weights)
         z, y, x, _ = locations[chosen_idx]
 
-        # Extract patches
         image = self.images[vol_idx]
         label = self.labels[vol_idx]
 
-        image_patch = image[z:z + self.patch_shape[0],
-                      y:y + self.patch_shape[1],
-                      x:x + self.patch_shape[2]]
-        label_patch = label[z:z + self.patch_shape[0],
-                      y:y + self.patch_shape[1],
-                      x:x + self.patch_shape[2]]
+        # Extract patch WITH halo context
+        z_start = max(0, z - halo)
+        y_start = max(0, y - halo)
+        x_start = max(0, x - halo)
+        z_end = min(image.shape[0], z + self.patch_shape[0] + halo)
+        y_end = min(image.shape[1], y + self.patch_shape[1] + halo)
+        x_end = min(image.shape[2], x + self.patch_shape[2] + halo)
+
+        image_patch = image[z_start:z_end, y_start:y_end, x_start:x_end]
+        label_patch = label[z_start:z_end, y_start:y_end, x_start:x_end]
+
+        # Ensure consistent size by padding if needed
+        target_shape = (self.patch_shape[0] + 2 * halo,
+                        self.patch_shape[1] + 2 * halo,
+                        self.patch_shape[2] + 2 * halo)
+
+        # Pad to target shape if patch is smaller
+        def pad_to_shape(arr, target_shape):
+            pad_width = []
+            for i in range(len(target_shape)):
+                diff = target_shape[i] - arr.shape[i]
+                pad_before = diff // 2
+                pad_after = diff - pad_before
+                pad_width.append((pad_before, pad_after))
+            return np.pad(arr, pad_width, mode='reflect' if arr.dtype != np.uint8 else 'constant')
+
+        if image_patch.shape != target_shape:
+            image_patch = pad_to_shape(image_patch, target_shape)
+            label_patch = pad_to_shape(label_patch, target_shape)
 
         # Convert to tensors and add channel dimension
         image_patch = torch.tensor(image_patch, dtype=torch.float32).unsqueeze(0)
@@ -149,7 +166,11 @@ class PlanktonDataset(Dataset):
         # Transform mask (create foreground/boundary targets)
         label_patch = self.mask_transform(label_patch)
 
-        return image_patch, label_patch
+        # Create center region mask for loss computation
+        center_mask = torch.zeros_like(label_patch[0], dtype=torch.bool)
+        center_mask[halo:-halo, halo:-halo, halo:-halo] = True
+
+        return image_patch, label_patch, center_mask
 
     @staticmethod
     def default_mask_transform(mask):
@@ -331,3 +352,96 @@ def background_aware_normalize(volume):
         f"   Foreground normalized to: {normalized[foreground_mask].min():.6f} - {normalized[foreground_mask].max():.6f}")
 
     return normalized
+
+
+class TiledValidationDataset(Dataset):
+    """Validation dataset that uses systematic tiling like inference"""
+
+    def __init__(self, images, labels, tile_shape=(128, 128, 128), halo=32,
+                 mask_transform=None, min_foreground=100):
+        self.images = images
+        self.labels = labels
+        self.tile_shape = tile_shape
+        self.halo = halo
+        self.mask_transform = mask_transform or PlanktonDataset.default_mask_transform
+        self.min_foreground = min_foreground
+
+        # Pre-compute all tile positions
+        self.tile_positions = self._compute_tile_positions()
+        print(f"Created {len(self.tile_positions)} validation tiles")
+
+    def _compute_tile_positions(self):
+        """Compute systematic tile positions across all volumes"""
+        positions = []
+
+        for vol_idx, (image, label) in enumerate(zip(self.images, self.labels)):
+            vol_tiles = 0
+
+            # Systematic tiling (same as inference)
+            for z in range(0, image.shape[0] - self.tile_shape[0] + 1, self.tile_shape[0]):
+                for y in range(0, image.shape[1] - self.tile_shape[1] + 1, self.tile_shape[1]):
+                    for x in range(0, image.shape[2] - self.tile_shape[2] + 1, self.tile_shape[2]):
+
+                        # Check if tile has enough foreground
+                        tile_label = label[z:z + self.tile_shape[0],
+                                     y:y + self.tile_shape[1],
+                                     x:x + self.tile_shape[2]]
+
+                        if np.sum(tile_label > 0) >= self.min_foreground:
+                            positions.append((vol_idx, z, y, x))
+                            vol_tiles += 1
+
+            print(f"Volume {vol_idx}: {vol_tiles} validation tiles")
+
+        return positions
+
+    def __len__(self):
+        return len(self.tile_positions)
+
+    def __getitem__(self, index):
+        vol_idx, z, y, x = self.tile_positions[index]
+
+        image = self.images[vol_idx]
+        label = self.labels[vol_idx]
+
+        # Extract tile with halo (same as inference)
+        z_start = max(0, z - self.halo)
+        y_start = max(0, y - self.halo)
+        x_start = max(0, x - self.halo)
+        z_end = min(image.shape[0], z + self.tile_shape[0] + self.halo)
+        y_end = min(image.shape[1], y + self.tile_shape[1] + self.halo)
+        x_end = min(image.shape[2], x + self.tile_shape[2] + self.halo)
+
+        image_tile = image[z_start:z_end, y_start:y_end, x_start:x_end]
+        label_tile = label[z_start:z_end, y_start:y_end, x_start:x_end]
+
+        # Pad to consistent size
+        target_shape = (self.tile_shape[0] + 2 * self.halo,
+                        self.tile_shape[1] + 2 * self.halo,
+                        self.tile_shape[2] + 2 * self.halo)
+
+        def pad_to_shape(arr, target_shape):
+            pad_width = []
+            for i in range(len(target_shape)):
+                diff = target_shape[i] - arr.shape[i]
+                pad_before = diff // 2
+                pad_after = diff - pad_before
+                pad_width.append((pad_before, pad_after))
+            return np.pad(arr, pad_width, mode='reflect' if arr.dtype != np.uint8 else 'constant')
+
+        if image_tile.shape != target_shape:
+            image_tile = pad_to_shape(image_tile, target_shape)
+            label_tile = pad_to_shape(label_tile, target_shape)
+
+        # Convert to tensors
+        image_tensor = torch.tensor(image_tile, dtype=torch.float32).unsqueeze(0)
+        label_tensor = torch.tensor(label_tile, dtype=torch.uint8).unsqueeze(0)
+
+        # Transform labels
+        label_tensor = self.mask_transform(label_tensor.squeeze(0))
+
+        # Create center mask for loss computation
+        center_mask = torch.zeros_like(label_tensor[0], dtype=torch.bool)
+        center_mask[self.halo:-self.halo, self.halo:-self.halo, self.halo:-self.halo] = True
+
+        return image_tensor, label_tensor, center_mask

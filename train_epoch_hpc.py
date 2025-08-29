@@ -8,7 +8,7 @@ if str(script_dir) not in sys.path:
 
 from pathlib import Path
 import torch
-from model_hpc import EarlyStopping, ComprehensiveMetrics
+from model_hpc import EarlyStopping, ComprehensiveMetrics, diagnose_logit_ranges
 import numpy as np
 import json
 import wandb
@@ -65,6 +65,27 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     # Enhanced image logger for HPC
     image_logger = ImageLogger(config)
 
+    # DIAGNOSTIC: Check initial model state
+    print("\n" + "=" * 60)
+    print("🏥 INITIAL MODEL HEALTH CHECK")
+    print("=" * 60)
+
+    # Get a sample batch for diagnostics
+    sample_batch = next(iter(val_loader))
+    if len(sample_batch) == 3:
+        sample_x, _, _ = sample_batch
+    else:
+        sample_x, _ = sample_batch
+
+    sample_x = sample_x[:1].to(device)  # Just one sample
+
+    print("Untrained model logit analysis:")
+    initial_health = diagnose_logit_ranges(model, sample_x)
+
+    if initial_health == "extreme":
+        print("🚨 WARNING: Model starts with extreme logits. Consider:")
+    print("=" * 60 + "\n")
+
     # Training state tracking
     total_train_time = 0
     total_batches_processed = 0
@@ -78,6 +99,28 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     for epoch in tqdm(range(n_epochs), desc='HPC Training Progress', ncols=100):
         epoch_start_time = time.time()
 
+        if epoch % 20 == 0 and epoch > 0:  # Every 20 epochs
+            print(f"\n🏥 MODEL HEALTH CHECK - Epoch {epoch}")
+            print("-" * 50)
+
+            model.eval()
+            health_status = diagnose_logit_ranges(model, sample_x)
+            model.train()
+
+            # Log to wandb
+            try:
+                wandb.log({
+                    f"health/logit_status_epoch_{epoch}":
+                        {"extreme": 3, "high": 2, "normal": 1}[health_status],
+                    "epoch": epoch
+                })
+            except:
+                pass
+
+            if health_status == "extreme":
+                print("🚨 EXTREME LOGITS DETECTED!")
+            print("-" * 50 + "\n")
+
         # Training phase with HPC optimizations
         model.train()
         train_losses, train_metrics_list = [], []
@@ -90,16 +133,37 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
             ncols=120
         )
 
-        for batch_idx, (x, y) in enumerate(train_pbar):
+        for batch_idx, batch_data in enumerate(train_pbar):
             batch_start = time.time()
 
             optimizer.zero_grad()
-            x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
 
-            # Mixed precision forward pass (HPC optimization)
+            # Handle different dataset formats (with/without center mask)
+            if len(batch_data) == 3:  # New format with center mask
+                x, y, center_mask = batch_data
+                x = x.to(device, non_blocking=True)
+                y = y.to(device, non_blocking=True)
+                center_mask = center_mask.to(device, non_blocking=True)
+            else:  # Old format without center mask
+                x, y = batch_data
+                x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+                center_mask = None
+
+            # Mixed precision forward pass
             with torch.cuda.amp.autocast():
                 pred = model(x)
-                loss = loss_fn(pred, y)
+
+                # Check if loss function accepts center_mask parameter
+                if center_mask is not None and hasattr(loss_fn, 'forward'):
+                    # Get the forward method's signature
+                    import inspect
+                    sig = inspect.signature(loss_fn.forward)
+                    if 'center_mask' in sig.parameters:
+                        loss = loss_fn(pred, y, center_mask)
+                    else:
+                        loss = loss_fn(pred, y)
+                else:
+                    loss = loss_fn(pred, y)
 
             # Mixed precision backward pass
             scaler.scale(loss).backward()
@@ -123,7 +187,28 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
 
             # Calculate training metrics (without gradients)
             with torch.no_grad():
-                batch_metrics = metrics_calculator.compute_all_metrics(pred, y)
+                # If we have center mask, only compute metrics on center region
+                if center_mask is not None:
+                    # Extract center regions for metrics calculation
+                    batch_size = pred.shape[0]
+                    pred_centers = []
+                    y_centers = []
+
+                    for b in range(batch_size):
+                        mask_b = center_mask[b]
+                        pred_center = pred[b:b + 1, :, mask_b].unsqueeze(-1).unsqueeze(-1)  # Keep batch dim
+                        y_center = y[b:b + 1, :, mask_b].unsqueeze(-1).unsqueeze(-1)
+                        pred_centers.append(pred_center)
+                        y_centers.append(y_center)
+
+                    # Calculate metrics on center regions only
+                    batch_metrics = metrics_calculator.compute_all_metrics(
+                        torch.cat(pred_centers, dim=0),
+                        torch.cat(y_centers, dim=0)
+                    )
+                else:
+                    batch_metrics = metrics_calculator.compute_all_metrics(pred, y)
+
                 train_metrics_list.append(batch_metrics)
 
             # Update progress bar with HPC stats
@@ -150,16 +235,55 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
         )
 
         with torch.no_grad():
-            for batch_idx, (x, y) in enumerate(val_pbar):
-                x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+            for batch_idx, batch_data in enumerate(val_pbar):
+                # Handle different dataset formats
+                if len(batch_data) == 3:
+                    x, y, center_mask = batch_data
+                    x = x.to(device, non_blocking=True)
+                    y = y.to(device, non_blocking=True)
+                    center_mask = center_mask.to(device, non_blocking=True)
+                else:
+                    x, y = batch_data
+                    x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
+                    center_mask = None
 
                 # Mixed precision validation
                 with torch.cuda.amp.autocast():
                     pred = model(x)
-                    loss = loss_fn(pred, y)
+
+                    # Check if loss function accepts center_mask
+                    if center_mask is not None and hasattr(loss_fn, 'forward'):
+                        import inspect
+                        sig = inspect.signature(loss_fn.forward)
+                        if 'center_mask' in sig.parameters:
+                            loss = loss_fn(pred, y, center_mask)
+                        else:
+                            loss = loss_fn(pred, y)
+                    else:
+                        loss = loss_fn(pred, y)
 
                 val_losses.append(loss.item())
-                batch_metrics = metrics_calculator.compute_all_metrics(pred, y)
+
+                # Calculate validation metrics on center region if mask provided
+                if center_mask is not None:
+                    batch_size = pred.shape[0]
+                    pred_centers = []
+                    y_centers = []
+
+                    for b in range(batch_size):
+                        mask_b = center_mask[b]
+                        pred_center = pred[b:b + 1, :, mask_b].unsqueeze(-1).unsqueeze(-1)
+                        y_center = y[b:b + 1, :, mask_b].unsqueeze(-1).unsqueeze(-1)
+                        pred_centers.append(pred_center)
+                        y_centers.append(y_center)
+
+                    batch_metrics = metrics_calculator.compute_all_metrics(
+                        torch.cat(pred_centers, dim=0),
+                        torch.cat(y_centers, dim=0)
+                    )
+                else:
+                    batch_metrics = metrics_calculator.compute_all_metrics(pred, y)
+
                 val_metrics_list.append(batch_metrics)
 
                 # Update validation progress
@@ -170,6 +294,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
                         'loss': f'{current_loss:.4f}',
                         'dice': f'{current_dice:.4f}'
                     })
+
 
         # Calculate epoch statistics
         epoch_time = time.time() - epoch_start_time

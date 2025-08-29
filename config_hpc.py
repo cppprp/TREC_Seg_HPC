@@ -19,7 +19,7 @@ def setup_config():
 
     # Everything on scratch for speed
     scratch_base = "/scratch/asvetlove"
-    training_data = f"{scratch_base}/ML_training_data"
+    training_data = "/home/asvetlove/PycharmProjects/TREC_seg_unet/data/ml_patches/" #f"{scratch_base}/ML_training_data"
     results_dir = f"{scratch_base}/plankton_results/job_{job_id}"
 
     config = {
@@ -34,6 +34,7 @@ def setup_config():
             'learning_rate': 3e-5,
             'n_epochs': 200,
             'patch_shape': (128, 128, 128),
+            'halo_size': 32,
             'samples_per_volume': 20,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
@@ -47,7 +48,7 @@ def setup_config():
             'wdice_weights': [1.0, 2.0],
             'wdice_smooth': 1e-7,
             'focal_alpha': 0.22733153821514615,
-            'focal_gamma': 3,
+            'focal_gamma': 2.0,
             'hard_neg_focal_ratio': 2.0,
             'tversky_focal_alpha': 0.3,
             'tversky_focal_beta': 0.7,
@@ -55,14 +56,14 @@ def setup_config():
             'tversky_focal_smooth': 1e-7,
         },
         'optimization': {
-            'early_stopping_patience': 20,
-            'min_delta': 0.001,
+            'early_stopping_patience': 30,
+            'min_delta': 0.0005,
             'weight_decay': 1e-4
         },
         'scheduler': {
             'mode': 'min',
             'factor': 0.5,
-            'patience': 15
+            'patience': 20
         },
         'data': {
             'voxel_size_nm': 650,
@@ -80,7 +81,7 @@ def setup_config():
         'wandb': {
             'project': 'plankton-segmentation-hpc',
             'entity': None,
-            'tags': ['unet3d', 'hpc', f'job-{job_id}'],
+            'tags': ['unet3d', 'hpc', f'job-{job_id}', 'halo-training'],
             'notes': f'HPC run - Job {job_id} on {node_name}',
             'log_model': True,
         },

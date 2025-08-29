@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from model_hpc import create_loss_type
+from model_hpc import create_loss_type, diagnose_logit_ranges
 
 script_dir = Path(__file__).parent.absolute()
 if str(script_dir) not in sys.path:
@@ -35,7 +35,7 @@ def main():
         import numpy as np
         import json
         import wandb
-        from dataset_hpc import load_and_prepare_data, create_aggressive_transforms, PlanktonDataset
+        from dataset_hpc import load_and_prepare_data, create_aggressive_transforms, PlanktonDataset, TiledValidationDataset
         from model_hpc import WeightedDiceLoss, TverskyFocalLoss, FocalLossWithHardNegatives, FocalLoss
         from train_epoch_hpc import run_enhanced_training_loop
 
@@ -118,6 +118,7 @@ def main():
         # Create datasets
         train_transforms = create_aggressive_transforms()
 
+        print("Creating training dataset with halo support...")
         train_dataset = PlanktonDataset(
             train_images, train_labels,
             patch_shape=config['training']['patch_shape'],
@@ -126,15 +127,15 @@ def main():
             min_foreground_ratio=config['data']['min_foreground_ratio']
         )
 
-        val_dataset = PlanktonDataset(
+        print("Creating tile-based validation dataset...")
+        val_dataset = TiledValidationDataset(
             val_images, val_labels,
-            patch_shape=config['training']['patch_shape'],
-            transform=None,
-            samples_per_volume=config['training']['samples_per_volume'] // 2,
-            min_foreground_ratio=config['data']['min_foreground_ratio']
+            tile_shape=config['training']['patch_shape'],
+            halo=config['training']['halo_size'],
+            min_foreground=100  # Minimum foreground pixels per tile
         )
 
-        # Create data loaders
+        # Create data loaders (reduce batch size due to larger patches)
         train_loader = DataLoader(
             train_dataset,
             batch_size=config['training']['batch_size'],
@@ -145,14 +146,34 @@ def main():
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=config['training']['batch_size'],
+            batch_size=max(1, config['training']['batch_size']//2),  # Smaller batch for validation
             shuffle=False,
             num_workers=config['training']['num_workers'],
             pin_memory=config['training']['pin_memory']
         )
 
-        print(f"🔄 Training batches: {len(train_loader)}")
-        print(f"🔄 Validation batches: {len(val_loader)}")
+        print(f"Training batches: {len(train_loader)} (samples per epoch: {len(train_dataset)})")
+        print(f"Validation batches: {len(val_loader)} (total tiles: {len(val_dataset)})")
+
+        # Add this check to verify datasets are working
+        print("Testing dataset formats...")
+        try:
+            train_sample = next(iter(train_loader))
+            val_sample = next(iter(val_loader))
+
+            print(f"Training sample format: {len(train_sample)} items")
+            print(f"Training shapes: image {train_sample[0].shape}, labels {train_sample[1].shape}")
+            if len(train_sample) == 3:
+                print(f"Training center mask shape: {train_sample[2].shape}")
+
+            print(f"Validation sample format: {len(val_sample)} items")
+            print(f"Validation shapes: image {val_sample[0].shape}, labels {val_sample[1].shape}")
+            if len(val_sample) == 3:
+                print(f"Validation center mask shape: {val_sample[2].shape}")
+
+        except Exception as e:
+            print(f"Dataset test failed: {e}")
+            raise
 
         # Create model
         model = UNet3d(**config['model'])
@@ -223,7 +244,7 @@ def main():
         summary_file = Path(config['paths']['logs']) / 'training_summary.json'
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2)
-
+        diagnose_logit_ranges(model, )
         # Final wandb log
         if use_wandb:
             wandb.log(summary)

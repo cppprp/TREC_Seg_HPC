@@ -166,6 +166,84 @@ class FocalLossWithHardNegatives(torch.nn.Module):
                     total_loss += hard_neg_penalty
 
         return total_loss / predictions.shape[1]
+
+
+class CombinedLoss(torch.nn.Module):
+    """Combined Focal + Dice loss with center mask support and logit control"""
+
+    def __init__(self, focal_weight=0.4, dice_weight=0.6, focal_alpha=0.25,
+                 focal_gamma=2.0, dice_weights=[1.0, 2.0], smooth=1e-7,
+                 logit_penalty=0.01):
+        super().__init__()
+        self.focal_weight = focal_weight
+        self.dice_weight = dice_weight
+        self.focal_alpha = focal_alpha
+        self.focal_gamma = focal_gamma
+        self.dice_weights = dice_weights
+        self.smooth = smooth
+        self.logit_penalty = logit_penalty
+
+    def forward(self, predictions, targets, center_mask=None):
+        # If center_mask provided, only compute loss on center region
+        if center_mask is not None:
+            # Apply center mask to both predictions and targets
+            batch_size = predictions.shape[0]
+            masked_preds = []
+            masked_targets = []
+
+            for b in range(batch_size):
+                mask_b = center_mask[b]  # Shape: (D, H, W)
+                pred_b = predictions[b][:, mask_b]  # Shape: (C, N_masked_voxels)
+                target_b = targets[b][:, mask_b]  # Shape: (C, N_masked_voxels)
+                masked_preds.append(pred_b)
+                masked_targets.append(target_b)
+
+            # Stack back together
+            predictions = torch.stack(masked_preds, dim=0)  # (B, C, N_masked)
+            targets = torch.stack(masked_targets, dim=0)
+
+        # Apply sigmoid to predictions
+        pred_probs = torch.sigmoid(predictions)
+
+        # 1. Focal loss component
+        focal_loss = 0
+        for i in range(predictions.shape[1]):  # For each channel
+            pred_i = pred_probs[:, i].flatten()
+            target_i = targets[:, i].flatten()
+
+            # Binary cross entropy with focal weighting
+            bce = F.binary_cross_entropy(pred_i, target_i, reduction='none')
+            pt = torch.where(target_i == 1, pred_i, 1 - pred_i)
+            focal_weight = self.focal_alpha * (1 - pt) ** self.focal_gamma
+            focal_loss += (focal_weight * bce).mean()
+
+        focal_loss /= predictions.shape[1]
+
+        # 2. Dice loss component
+        dice_loss = 0
+        for i in range(predictions.shape[1]):
+            pred_i = pred_probs[:, i].flatten()
+            target_i = targets[:, i].flatten()
+
+            intersection = (pred_i * target_i).sum()
+            union = pred_i.sum() + target_i.sum()
+
+            dice = (2.0 * intersection + self.smooth) / (union + self.smooth)
+            dice_loss += self.dice_weights[i] * (1 - dice)
+
+        dice_loss /= len(self.dice_weights)
+
+        # 3. Logit magnitude penalty (prevents extreme overconfidence)
+        logit_magnitude = torch.abs(predictions).mean()
+        magnitude_penalty = self.logit_penalty * torch.clamp(logit_magnitude - 5.0, min=0)
+
+        total_loss = (self.focal_weight * focal_loss +
+                      self.dice_weight * dice_loss +
+                      magnitude_penalty)
+
+        return total_loss
+
+
 def create_loss_type(config):
     if config['training']['loss'] == 'wdice':
         return WeightedDiceLoss(weights=config['loss_specs']['wdice_weights'], smooth=config['loss_specs']['wdice_smooth'])
@@ -178,6 +256,14 @@ def create_loss_type(config):
     elif config['training']['loss'] == 'hard_neg_focal':
         return FocalLossWithHardNegatives(alpha=config['loss_specs']['focal_alpha'], gamma=config['loss_specs']['focal_gamma'],
                                           hard_neg_ratio=config['loss_specs']['hard_neg_focal_ratio'])
+    elif config['training']['loss'] == 'combined':
+        return CombinedLoss(
+            focal_weight=0.4,
+            dice_weight=0.6,
+            focal_alpha=config['loss_specs']['focal_alpha'],
+            focal_gamma=config['loss_specs']['focal_gamma'],
+            dice_weights=config['loss_specs']['wdice_weights'],
+            logit_penalty=0.01)
     else:
         print ('Loss unknown, defaulting to focal loss')
         return FocalLoss(alpha=config['loss_specs']['focal_alpha'], gamma=config['loss_specs']['focal_gamma'])
