@@ -238,10 +238,10 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
             for batch_idx, batch_data in enumerate(val_pbar):
                 # Handle different dataset formats
                 if len(batch_data) == 3:
-                    x, y, center_mask = batch_data
+                    x, y= batch_data
                     x = x.to(device, non_blocking=True)
                     y = y.to(device, non_blocking=True)
-                    center_mask = center_mask.to(device, non_blocking=True)
+                    #center_mask = center_mask.to(device, non_blocking=True)
                 else:
                     x, y = batch_data
                     x, y = x.to(device, non_blocking=True), y.to(device, non_blocking=True)
@@ -256,7 +256,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
                         import inspect
                         sig = inspect.signature(loss_fn.forward)
                         if 'center_mask' in sig.parameters:
-                            loss = loss_fn(pred, y, center_mask)
+                            loss = loss_fn(pred, y)
                         else:
                             loss = loss_fn(pred, y)
                     else:

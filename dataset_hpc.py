@@ -90,62 +90,45 @@ class PlanktonDataset(Dataset):
         return valid_locations
 
     def __getitem__(self, index):
-        """Modified to extract patches with halo context"""
+        """Skip to next volume if current has no valid patches"""
         vol_idx = index // self.samples_per_volume
-        halo = 32  # Match inference halo size
 
-        # Find a volume with valid locations (keep existing logic)
+        # Find a volume with valid locations
         attempts = 0
         max_attempts = len(self.valid_locations)
 
         while attempts < max_attempts:
             locations = self.valid_locations[vol_idx]
+
+            # If this volume has valid patches, use it
             if locations:
                 break
+
+            # Otherwise try next volume
             vol_idx = (vol_idx + 1) % len(self.valid_locations)
             attempts += 1
 
+        # If no volumes have valid patches (shouldn't happen), raise error
         if not locations:
             raise RuntimeError("No volumes with valid patches found!")
 
-        # Sample location (keep existing weighted sampling)
+        # Weighted sampling based on foreground content
         weights = np.array([loc[3] + 0.1 for loc in locations])
         weights = weights / np.sum(weights)
+
         chosen_idx = np.random.choice(len(locations), p=weights)
         z, y, x, _ = locations[chosen_idx]
 
+        # Extract patches
         image = self.images[vol_idx]
         label = self.labels[vol_idx]
 
-        # Extract patch WITH halo context
-        z_start = max(0, z - halo)
-        y_start = max(0, y - halo)
-        x_start = max(0, x - halo)
-        z_end = min(image.shape[0], z + self.patch_shape[0] + halo)
-        y_end = min(image.shape[1], y + self.patch_shape[1] + halo)
-        x_end = min(image.shape[2], x + self.patch_shape[2] + halo)
-
-        image_patch = image[z_start:z_end, y_start:y_end, x_start:x_end]
-        label_patch = label[z_start:z_end, y_start:y_end, x_start:x_end]
-
-        # Ensure consistent size by padding if needed
-        target_shape = (self.patch_shape[0] + 2 * halo,
-                        self.patch_shape[1] + 2 * halo,
-                        self.patch_shape[2] + 2 * halo)
-
-        # Pad to target shape if patch is smaller
-        def pad_to_shape(arr, target_shape):
-            pad_width = []
-            for i in range(len(target_shape)):
-                diff = target_shape[i] - arr.shape[i]
-                pad_before = diff // 2
-                pad_after = diff - pad_before
-                pad_width.append((pad_before, pad_after))
-            return np.pad(arr, pad_width, mode='reflect' if arr.dtype != np.uint8 else 'constant')
-
-        if image_patch.shape != target_shape:
-            image_patch = pad_to_shape(image_patch, target_shape)
-            label_patch = pad_to_shape(label_patch, target_shape)
+        image_patch = image[z:z + self.patch_shape[0],
+                      y:y + self.patch_shape[1],
+                      x:x + self.patch_shape[2]]
+        label_patch = label[z:z + self.patch_shape[0],
+                      y:y + self.patch_shape[1],
+                      x:x + self.patch_shape[2]]
 
         # Convert to tensors and add channel dimension
         image_patch = torch.tensor(image_patch, dtype=torch.float32).unsqueeze(0)
@@ -166,11 +149,7 @@ class PlanktonDataset(Dataset):
         # Transform mask (create foreground/boundary targets)
         label_patch = self.mask_transform(label_patch)
 
-        # Create center region mask for loss computation
-        center_mask = torch.zeros_like(label_patch[0], dtype=torch.bool)
-        center_mask[halo:-halo, halo:-halo, halo:-halo] = True
-
-        return image_patch, label_patch, center_mask
+        return image_patch, label_patch
 
     @staticmethod
     def default_mask_transform(mask):
