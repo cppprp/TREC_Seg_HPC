@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+from dataset_hpc import TiledValidationDataset
 from model_hpc import create_loss_type
 
 script_dir = Path(__file__).parent.absolute()
@@ -126,12 +127,11 @@ def main():
             min_foreground_ratio=config['data']['min_foreground_ratio']
         )
 
-        val_dataset = PlanktonDataset(
+        val_dataset = TiledValidationDataset(
             val_images, val_labels,
-            patch_shape=config['training']['patch_shape'],
-            transform=None,
-            samples_per_volume=config['training']['samples_per_volume'] // 2,
-            min_foreground_ratio=config['data']['min_foreground_ratio']
+            tile_shape=config['training']['patch_shape'],
+            halo=config['training']['halo'],
+            min_foreground=100
         )
 
         # Create data loaders

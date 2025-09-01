@@ -178,7 +178,97 @@ class PlanktonDataset(Dataset):
 
         return torch.stack([torch.tensor(foreground), torch.tensor(boundaries)])
 
+class TiledValidationDataset(Dataset):
+    """Validation dataset that uses systematic tiling like inference"""
 
+    def __init__(self, images, labels, tile_shape=(128, 128, 128), halo=32,
+                 mask_transform=None, min_foreground=100):
+        self.images = images
+        self.labels = labels
+        self.tile_shape = tile_shape
+        self.halo = halo
+        self.mask_transform = mask_transform or PlanktonDataset.default_mask_transform
+        self.min_foreground = min_foreground
+
+        # Pre-compute all tile positions
+        self.tile_positions = self._compute_tile_positions()
+        print(f"Created {len(self.tile_positions)} validation tiles")
+
+    def _compute_tile_positions(self):
+        """Compute systematic tile positions across all volumes"""
+        positions = []
+
+        for vol_idx, (image, label) in enumerate(zip(self.images, self.labels)):
+            vol_tiles = 0
+
+            # Systematic tiling (same as inference)
+            for z in range(0, image.shape[0] - self.tile_shape[0] + 1, self.tile_shape[0]):
+                for y in range(0, image.shape[1] - self.tile_shape[1] + 1, self.tile_shape[1]):
+                    for x in range(0, image.shape[2] - self.tile_shape[2] + 1, self.tile_shape[2]):
+
+                        # Check if tile has enough foreground
+                        tile_label = label[z:z + self.tile_shape[0],
+                                     y:y + self.tile_shape[1],
+                                     x:x + self.tile_shape[2]]
+
+                        if np.sum(tile_label > 0) >= self.min_foreground:
+                            positions.append((vol_idx, z, y, x))
+                            vol_tiles += 1
+
+            print(f"Volume {vol_idx}: {vol_tiles} validation tiles")
+
+        return positions
+
+    def __len__(self):
+        return len(self.tile_positions)
+
+    def __getitem__(self, index):
+        vol_idx, z, y, x = self.tile_positions[index]
+
+        image = self.images[vol_idx]
+        label = self.labels[vol_idx]
+
+        # Extract tile with halo (same as inference)
+        z_start = max(0, z - self.halo)
+        y_start = max(0, y - self.halo)
+        x_start = max(0, x - self.halo)
+        z_end = min(image.shape[0], z + self.tile_shape[0] + self.halo)
+        y_end = min(image.shape[1], y + self.tile_shape[1] + self.halo)
+        x_end = min(image.shape[2], x + self.tile_shape[2] + self.halo)
+
+        image_tile = image[z_start:z_end, y_start:y_end, x_start:x_end]
+        label_tile = label[z_start:z_end, y_start:y_end, x_start:x_end]
+
+        # Pad to consistent size
+        target_shape = (self.tile_shape[0] + 2 * self.halo,
+                        self.tile_shape[1] + 2 * self.halo,
+                        self.tile_shape[2] + 2 * self.halo)
+
+        def pad_to_shape(arr, target_shape):
+            pad_width = []
+            for i in range(len(target_shape)):
+                diff = target_shape[i] - arr.shape[i]
+                pad_before = diff // 2
+                pad_after = diff - pad_before
+                pad_width.append((pad_before, pad_after))
+            return np.pad(arr, pad_width, mode='reflect' if arr.dtype != np.uint8 else 'constant')
+
+        if image_tile.shape != target_shape:
+            image_tile = pad_to_shape(image_tile, target_shape)
+            label_tile = pad_to_shape(label_tile, target_shape)
+
+        # Convert to tensors
+        image_tensor = torch.tensor(image_tile, dtype=torch.float32).unsqueeze(0)
+        label_tensor = torch.tensor(label_tile, dtype=torch.uint8).unsqueeze(0)
+
+        # Transform labels
+        label_tensor = self.mask_transform(label_tensor.squeeze(0))
+
+        # Create center mask for loss computation
+        center_mask = torch.zeros_like(label_tensor[0], dtype=torch.bool)
+        center_mask[self.halo:-self.halo, self.halo:-self.halo, self.halo:-self.halo] = True
+
+        return image_tensor, label_tensor
 def create_transforms():
     """Create augmentation transforms for training"""
 
