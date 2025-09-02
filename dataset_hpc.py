@@ -182,13 +182,14 @@ class TiledValidationDataset(Dataset):
     """Validation dataset that uses systematic tiling like inference"""
 
     def __init__(self, images, labels, tile_shape=(128, 128, 128), halo=32,
-                 mask_transform=None, min_foreground=100):
+                 mask_transform=None, min_foreground=100, tiles = 30):
         self.images = images
         self.labels = labels
         self.tile_shape = tile_shape
         self.halo = halo
         self.mask_transform = mask_transform or PlanktonDataset.default_mask_transform
         self.min_foreground = min_foreground
+        self.max_tiles = tiles
 
         # Pre-compute all tile positions
         self.tile_positions = self._compute_tile_positions()
@@ -211,7 +212,7 @@ class TiledValidationDataset(Dataset):
                                      y:y + self.tile_shape[1],
                                      x:x + self.tile_shape[2]]
 
-                        if np.sum(tile_label > 0) >= self.min_foreground:
+                        if np.sum(tile_label > 0) >= self.min_foreground and len(positions)< self.max_tiles:
                             positions.append((vol_idx, z, y, x))
                             vol_tiles += 1
 

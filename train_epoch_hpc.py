@@ -8,7 +8,7 @@ if str(script_dir) not in sys.path:
 
 from pathlib import Path
 import torch
-from model_hpc import EarlyStopping, ComprehensiveMetrics
+from model_hpc import EarlyStopping, ComprehensiveMetrics, diagnose_logit_ranges
 import numpy as np
 import json
 import wandb
@@ -63,7 +63,8 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     scaler = torch.cuda.amp.GradScaler()
 
     # Enhanced image logger for HPC
-    image_logger = ImageLogger(config)
+    if config['logging']['log_images']:
+        image_logger = ImageLogger(config)
 
     # Training state tracking
     total_train_time = 0
@@ -75,9 +76,41 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
     print(f"   Checkpointing every: {config['training']['checkpoint_every']} epochs")
     print(f"   Learning rate patience: {config['scheduler']['patience']}")
 
+    # Get a sample batch for diagnostics
+    sample_batch = next(iter(val_loader))
+    if len(sample_batch) == 3:
+        sample_x, _, _ = sample_batch
+    else:
+        sample_x, _ = sample_batch
+
+    sample_x = sample_x[:1].to(device)  # Just one sample
+
+    print("Untrained model logit analysis:")
+    initial_health = diagnose_logit_ranges(model, sample_x)
+
     for epoch in tqdm(range(n_epochs), desc='HPC Training Progress', ncols=100):
         epoch_start_time = time.time()
+        #Check model health
+        if epoch % config['logging']['logit_range_freq'] == 0 and epoch > 0:
+            print(f"\n🏥 MODEL HEALTH CHECK - Epoch {epoch}")
+            print("-" * 50)
 
+            model.eval()
+            health_status = diagnose_logit_ranges(model, sample_x)
+            model.train()
+
+            # Log to wandb
+            try:
+                wandb.log({
+                    f"health/logit_status_epoch_{epoch}":
+                        {"extreme": 3, "high": 2, "normal": 1}[health_status],
+                    "epoch": epoch
+                })
+            except:
+                pass
+            if health_status == "extreme":
+                print("🚨 EXTREME LOGITS DETECTED!")
+            print("-" * 50 + "\n")
         # Training phase with HPC optimizations
         model.train()
         train_losses, train_metrics_list = [], []

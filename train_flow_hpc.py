@@ -129,9 +129,10 @@ def main():
 
         val_dataset = TiledValidationDataset(
             val_images, val_labels,
-            tile_shape=config['training']['patch_shape'],
-            halo=config['training']['halo'],
-            min_foreground=100
+            tile_shape=config['validation']['patch_shape'],
+            halo=config['validation']['halo'],
+            min_foreground=100,
+            tiles=config['validation']['validation_tiles']
         )
 
         # Create data loaders
@@ -145,7 +146,7 @@ def main():
 
         val_loader = DataLoader(
             val_dataset,
-            batch_size=config['training']['batch_size'],
+            batch_size=config['validation']['batch_size'],
             shuffle=False,
             num_workers=config['training']['num_workers'],
             pin_memory=config['training']['pin_memory']

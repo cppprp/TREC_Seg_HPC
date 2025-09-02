@@ -40,9 +40,15 @@ def setup_config():
             'loss': 'combined',
             'gradient_clip': 1.0,
             'num_workers': 12,
-            'halo':32,
+            'halo': 32,
             'pin_memory': True,
             'mixed_precision': True,
+        },
+        'validation': {
+            'batch_size': 1,
+            'halo': 16,
+            'patch_shape': (128, 128, 128),
+            'validation_tiles': 30
         },
         'loss_specs': {
             'wdice_weights': [1.0, 2.0],
@@ -58,7 +64,8 @@ def setup_config():
         'optimization': {
             'early_stopping_patience': 20,
             'min_delta': 0.001,
-            'weight_decay': 1e-4
+            'weight_decay': 1e-4,
+
         },
         'scheduler': {
             'mode': 'min',
@@ -86,11 +93,12 @@ def setup_config():
             'log_model': True,
         },
         'logging': {
-            'log_images': True,
+            'log_images': False,
             'val_log_frequency': 10,
             'progress_log_frequency': 10,
             'num_samples_per_log': 2,
-            'log_dataset_overview': True,
+            'log_dataset_overview': False,
+            'logit_range_freq' : 20
         },
         'hpc': {
             'job_id': job_id,
