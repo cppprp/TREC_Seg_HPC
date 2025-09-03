@@ -40,9 +40,15 @@ class PlanktonDataset(Dataset):
         self.min_foreground_ratio = min_foreground_ratio
         #self.normalisation_min = norm_min
         #self.normalisation_max = norm_max
-
+        self.volume_stats = self._analyze_volume_distributions()
+        self.sampling_stats = {
+            'fg_ratios': [],
+            'volume_usage': np.zeros(len(images)),
+            'category_counts': {'high': 0, 'medium': 0, 'low': 0, 'background': 0},
+            'total_samples': 0
+        }
         # Pre-calculate valid patch locations for each volume
-        self.valid_locations = self._find_valid_patch_locations()
+        #self.valid_locations = self._find_valid_patch_locations()
 
     def __len__(self):
         return len(self.images) * self.samples_per_volume
@@ -89,11 +95,41 @@ class PlanktonDataset(Dataset):
 
         return valid_locations
 
+    def _analyze_volume_distributions(self):
+        """Quick sampling to understand what's available in each volume"""
+        stats = []
+
+        for vol_idx, (image, label) in enumerate(zip(self.images, self.labels)):
+            if any(image.shape[i] < self.patch_shape[i] for i in range(3)):
+                stats.append({'fg_ratios': []})
+                continue
+
+            fg_ratios = []
+            # Sample 50 random patches to understand this volume's distribution
+            for _ in range(50):
+                z = np.random.randint(0, image.shape[0] - self.patch_shape[0])
+                y = np.random.randint(0, image.shape[1] - self.patch_shape[1])
+                x = np.random.randint(0, image.shape[2] - self.patch_shape[2])
+
+                patch_label = label[z:z + self.patch_shape[0],
+                              y:y + self.patch_shape[1],
+                              x:x + self.patch_shape[2]]
+                fg_ratio = np.sum(patch_label > 0) / patch_label.size
+                fg_ratios.append(fg_ratio)
+
+            stats.append({
+                'fg_ratios': fg_ratios,
+                'has_background': np.sum(np.array(fg_ratios) < 0.01) > 5,
+                'has_medium': np.sum((np.array(fg_ratios) >= 0.05) & (np.array(fg_ratios) < 0.2)) > 5,
+                'has_high': np.sum(np.array(fg_ratios) >= 0.2) > 5,
+            })
+
+        return stats
     def __getitem__(self, index):
         """Skip to next volume if current has no valid patches"""
         vol_idx = index // self.samples_per_volume
-
-        # Find a volume with valid locations
+        vol_stats = self.volume_stats[vol_idx]
+        '''# Find a volume with valid locations
         attempts = 0
         max_attempts = len(self.valid_locations)
 
@@ -128,12 +164,52 @@ class PlanktonDataset(Dataset):
                       x:x + self.patch_shape[2]]
         label_patch = label[z:z + self.patch_shape[0],
                       y:y + self.patch_shape[1],
+                      x:x + self.patch_shape[2]]'''
+        if not vol_stats['fg_ratios']:  # Empty volume
+            return self.__getitem__((index + 1) % len(self))
+
+            # Just sample completely randomly - the class imbalance handling
+            # happens at the loss function level, not sampling level
+        image = self.images[vol_idx]
+        label = self.labels[vol_idx]
+
+        z = np.random.randint(0, image.shape[0] - self.patch_shape[0])
+        y = np.random.randint(0, image.shape[1] - self.patch_shape[1])
+        x = np.random.randint(0, image.shape[2] - self.patch_shape[2])
+
+        image_patch = image[z:z + self.patch_shape[0],
+                      y:y + self.patch_shape[1],
+                      x:x + self.patch_shape[2]]
+        label_patch = label[z:z + self.patch_shape[0],
+                      y:y + self.patch_shape[1],
                       x:x + self.patch_shape[2]]
 
         # Convert to tensors and add channel dimension
         image_patch = torch.tensor(image_patch, dtype=torch.float32).unsqueeze(0)
         label_patch = torch.tensor(label_patch, dtype=torch.uint8).unsqueeze(0)
 
+        fg_ratio = np.sum(label_patch > 0) / label_patch.size
+
+        # Update stats
+        self.sampling_stats['fg_ratios'].append(fg_ratio)
+        self.sampling_stats['volume_usage'][vol_idx] += 1
+        self.sampling_stats['total_samples'] += 1
+
+        # Categorize sample
+        if fg_ratio >= 0.2:
+            category = 'high'
+        elif fg_ratio >= 0.05:
+            category = 'medium'
+        elif fg_ratio >= 0.01:
+            category = 'low'
+        else:
+            category = 'background'
+
+        self.sampling_stats['category_counts'][category] += 1
+
+        # Print periodic updates
+        if self.sampling_stats['total_samples'] % 100 == 0:
+            self._print_stats()
         # Apply transforms if specified
         if self.transform:
             image_patch = tio.ScalarImage(tensor=image_patch)
@@ -146,11 +222,47 @@ class PlanktonDataset(Dataset):
         else:
             label_patch = label_patch.squeeze(0)
 
+
         # Transform mask (create foreground/boundary targets)
         label_patch = self.mask_transform(label_patch)
 
         return image_patch, label_patch
 
+    def _print_stats(self):
+        """Print sampling statistics"""
+        stats = self.sampling_stats
+        total = stats['total_samples']
+
+        if total == 0:
+            return
+
+        print(f"\n--- Sampling Stats (n={total}) ---")
+
+        # Category distribution
+        for cat, count in stats['category_counts'].items():
+            pct = count / total * 100
+            print(f"{cat}: {count} ({pct:.1f}%)")
+
+        # Foreground ratio stats
+        fg_ratios = np.array(stats['fg_ratios'])
+        print(f"FG ratio: mean={fg_ratios.mean():.3f}, "
+              f"median={np.median(fg_ratios):.3f}, "
+              f"std={fg_ratios.std():.3f}")
+
+        # Volume usage
+        vol_usage = stats['volume_usage']
+        active_vols = np.sum(vol_usage > 0)
+        print(f"Active volumes: {active_vols}/{len(vol_usage)}")
+        print(f"Volume usage: min={vol_usage.min():.0f}, "
+              f"max={vol_usage.max():.0f}, "
+              f"mean={vol_usage.mean():.1f}")
+
+        # Identify unused volumes
+        unused = np.where(vol_usage == 0)[0]
+        if len(unused) > 0 and len(unused) < 10:
+            print(f"Unused volumes: {unused.tolist()}")
+        elif len(unused) >= 10:
+            print(f"Unused volumes: {len(unused)} total")
     @staticmethod
     def default_mask_transform(mask):
         """Create foreground and boundary targets"""
@@ -422,3 +534,36 @@ def background_aware_normalize(volume):
         f"   Foreground normalized to: {normalized[foreground_mask].min():.6f} - {normalized[foreground_mask].max():.6f}")
 
     return normalized
+
+
+def report_epoch_sampling_stats(train_dataset, epoch):
+    """Report what the model trained on this epoch"""
+    stats = train_dataset.sampling_stats
+    total = stats['total_samples']
+
+    if total == 0:
+        return
+
+    print(f"\n=== EPOCH {epoch} SAMPLING REPORT ===")
+
+    # Reset for next epoch tracking
+    epoch_samples = total - getattr(train_dataset, '_last_epoch_total', 0)
+    train_dataset._last_epoch_total = total
+
+    print(f"Samples this epoch: {epoch_samples}")
+
+    # Category breakdown
+    for cat, count in stats['category_counts'].items():
+        pct = count / total * 100
+        print(f"  {cat}: {pct:.1f}%")
+
+    # Check for problems
+    bg_pct = stats['category_counts']['background'] / total * 100
+    if bg_pct < 5:
+        print("  ⚠️  WARNING: Very few background samples (<5%)")
+
+    unused_volumes = np.sum(stats['volume_usage'] == 0)
+    if unused_volumes > len(stats['volume_usage']) * 0.3:
+        print(f"  ⚠️  WARNING: {unused_volumes} volumes unused (>{30}%)")
+
+    print("=" * 40)

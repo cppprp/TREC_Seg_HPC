@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+from dataset_hpc import report_epoch_sampling_stats
+
 script_dir = Path(__file__).parent.absolute()
 if str(script_dir) not in sys.path:
     sys.path.insert(0, str(script_dir))
@@ -336,6 +338,7 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
                 )
             except Exception as e:
                 print(f"⚠️ Image logging failed: {e}")
+
 
         # Early stopping check
         if early_stopping(-val_avg_metrics['dice'], model):

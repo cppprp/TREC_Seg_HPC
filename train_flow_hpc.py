@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from dataset_hpc import TiledValidationDataset
+from dataset_hpc import TiledValidationDataset, report_epoch_sampling_stats
 from model_hpc import create_loss_type
 
 script_dir = Path(__file__).parent.absolute()
@@ -220,7 +220,6 @@ def main():
             'job_id': config['hpc']['job_id'],
             'node': config['hpc']['node_name'],
         }
-
         summary_file = Path(config['paths']['logs']) / 'training_summary.json'
         with open(summary_file, 'w') as f:
             json.dump(summary, f, indent=2)
