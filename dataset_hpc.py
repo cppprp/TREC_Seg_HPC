@@ -285,10 +285,10 @@ class PlanktonDataset(Dataset):
             label_mask = (mask_np == label_id)
             label_boundaries = find_boundaries(label_mask, mode='thick')
             # Dilate boundaries slightly for better learning
-            label_boundaries = binary_dilation(label_boundaries, ball(1))
-            boundaries = np.logical_or(boundaries, label_boundaries)
+            #label_boundaries = binary_dilation(label_boundaries, ball(1))
+            #boundaries = np.logical_or(boundaries, label_boundaries)
 
-        boundaries = boundaries.astype(np.float32)
+        boundaries = label_boundaries.astype(np.float32)
 
         return torch.stack([torch.tensor(foreground), torch.tensor(boundaries)])
 
