@@ -184,11 +184,13 @@ class PlanktonDataset(Dataset):
                       y:y + self.patch_shape[1],
                       x:x + self.patch_shape[2]]
 
+        fg_ratio = np.sum(label_patch > 0) / label_patch.size
+
         # Convert to tensors and add channel dimension
         image_patch = torch.tensor(image_patch, dtype=torch.float32).unsqueeze(0)
         label_patch = torch.tensor(label_patch, dtype=torch.uint8).unsqueeze(0)
 
-        fg_ratio = np.sum(label_patch > 0) / label_patch.size
+
 
         # Update stats
         self.sampling_stats['fg_ratios'].append(fg_ratio)
