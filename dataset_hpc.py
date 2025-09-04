@@ -148,7 +148,7 @@ class PlanktonDataset(Dataset):
         #weights = weights / np.sum(weights)
 
         chosen_idx = np.random.choice(len(locations)) #p=weights)
-        z, y, x, _ = locations[chosen_idx]
+        z, y, x = locations[chosen_idx]
 
         # Extract patches
         image = self.images[vol_idx]
