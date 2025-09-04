@@ -2,7 +2,7 @@
 import sys
 from pathlib import Path
 
-from dataset_hpc import TiledValidationDataset, report_epoch_sampling_stats
+from dataset_hpc import TiledValidationDataset, report_epoch_sampling_stats, distance_mask_transform
 from model_hpc import create_loss_type
 
 script_dir = Path(__file__).parent.absolute()
@@ -123,17 +123,25 @@ def main():
             train_images, train_labels,
             patch_shape=config['training']['patch_shape'],
             transform=train_transforms,
+            mask_transform=distance_mask_transform,
             samples_per_volume=config['training']['samples_per_volume'],
             min_foreground_ratio=config['data']['min_foreground_ratio']
         )
-
-        val_dataset = TiledValidationDataset(
+        val_dataset = PlanktonDataset(
+            val_images, val_labels,
+            patch_shape=config['training']['patch_shape'],
+            transform=None,
+            mask_transform=distance_mask_transform,
+            samples_per_volume=config['training']['samples_per_volume'],
+            min_foreground_ratio=config['data']['min_foreground_ratio']
+        )
+        '''val_dataset = TiledValidationDataset(
             val_images, val_labels,
             tile_shape=config['validation']['patch_shape'],
             halo=config['validation']['halo'],
             min_foreground=100,
             tiles=config['validation']['validation_tiles']
-        )
+        )'''
 
         # Create data loaders
         train_loader = DataLoader(

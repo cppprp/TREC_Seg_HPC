@@ -54,11 +54,11 @@ class ImageLogger:
                 "class_labels": {0: "background", 2: "gt_boundary"}
             },
             "pred_foreground": {
-                "mask_data": (pred_fg > 0.5).astype(np.uint8)*3,
+                "mask_data": (pred_fg > 0.1).astype(np.uint8)*3,
                 "class_labels": {0: "background", 3: "pred_foreground"}
             },
             "pred_boundary": {
-                "mask_data": (pred_bd > 0.5).astype(np.uint8)*4,
+                "mask_data": (pred_bd > 0.1).astype(np.uint8)*4,
                 "class_labels": {0: "background", 4: "pred_boundary"}
             }
         }

@@ -54,46 +54,41 @@ class PlanktonDataset(Dataset):
         return len(self.images) * self.samples_per_volume
 
     def _find_valid_patch_locations(self):
-        """Find valid patch locations - MINIMAL FIX VERSION"""
-        valid_locations = []
+        """Create balanced sampling: background + foreground patches"""
+        all_locations = []
 
         for vol_idx, (image, label) in enumerate(zip(self.images, self.labels)):
-            vol_locations = []
+            foreground_locs = []
+            background_locs = []
 
-            # Calculate possible patch positions
-            max_z = image.shape[0] - self.patch_shape[0]
-            max_y = image.shape[1] - self.patch_shape[1]
-            max_x = image.shape[2] - self.patch_shape[2]
+            step_size = min(self.patch_shape) // 3  # Denser sampling
 
-            if max_z <= 0 or max_y <= 0 or max_x <= 0:
-                print(f"Warning: Volume {vol_idx} too small for patch size")
-                # ADD EMPTY LIST instead of skipping
-                valid_locations.append([])
-                continue
-
-            # Sample grid of positions and check foreground content
-            step_size = min(self.patch_shape) // 2
-
-            for z in range(0, max_z, step_size):
-                for y in range(0, max_y, step_size):
-                    for x in range(0, max_x, step_size):
+            for z in range(0, image.shape[0] - self.patch_shape[0], step_size):
+                for y in range(0, image.shape[1] - self.patch_shape[1], step_size):
+                    for x in range(0, image.shape[2] - self.patch_shape[2], step_size):
                         patch_label = label[z:z + self.patch_shape[0],
                                       y:y + self.patch_shape[1],
                                       x:x + self.patch_shape[2]]
 
                         fg_ratio = np.sum(patch_label > 0) / patch_label.size
-                        if fg_ratio >= self.min_foreground_ratio:
-                            vol_locations.append((z, y, x, fg_ratio))
 
-            # ALWAYS add the list (even if empty) to maintain indexing
-            valid_locations.append(vol_locations)
+                        if fg_ratio >= self.min_foreground_ratio:  # Substantial foreground
+                            foreground_locs.append((z,y,x,fg_ratio,'foreground'))
+                        elif fg_ratio == 0.0:  # Pure background
+                            background_locs.append((z,y,x,fg_ratio,'background'))
+                        # Skip patches with tiny amounts of foreground (likely artifacts)
 
-            if vol_locations:
-                print(f"Volume {vol_idx}: Found {len(vol_locations)} valid patches")
-            else:
-                print(f"Warning: Volume {vol_idx}: No valid patches found")
+            # Balance: 40% background, 60% foreground
+            n_bg_keep = min(len(background_locs), len(foreground_locs) * 2 // 3)
+            background_keep = np.random.choice(len(background_locs), n_bg_keep, replace=False)
 
-        return valid_locations
+            vol_locations = [foreground_locs[i] for i in range(len(foreground_locs))] + \
+                           [background_locs[i] for i in background_keep]
+
+            all_locations.append(vol_locations)
+            print(f"Volume {vol_idx}: {len(foreground_locs)} foreground, {n_bg_keep} background patches")
+
+        return all_locations
 
     def _analyze_volume_distributions(self):
         """Quick sampling to understand what's available in each volume"""
@@ -291,6 +286,23 @@ class PlanktonDataset(Dataset):
         boundaries = label_boundaries.astype(np.float32)
 
         return torch.stack([torch.tensor(foreground), torch.tensor(boundaries)])
+
+
+def distance_mask_transform(mask):
+    """Create foreground and distance transform targets"""
+    from scipy.ndimage import distance_transform_edt
+
+    mask_np = mask.numpy() if isinstance(mask, torch.Tensor) else mask
+    foreground = (mask_np > 0).astype(np.float32)
+
+    # Distance transform from object boundaries inward
+    distance = distance_transform_edt(foreground)
+
+    # Normalize to [0,1] - you can experiment with different normalizations
+    if distance.max() > 0:
+        distance = distance / distance.max()
+
+    return torch.stack([torch.tensor(foreground), torch.tensor(distance)])
 
 class TiledValidationDataset(Dataset):
     """Validation dataset that uses systematic tiling like inference"""

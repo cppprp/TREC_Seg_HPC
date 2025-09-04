@@ -52,7 +52,7 @@ def test_single_patch(model_path, config_path, volume_path, x,y,z):
 
 
 # Usage
-model_path = "/mnt/duke-netapp/asvetlove/plankton_results/job_36471054/checkpoints/best_model.pth"
+model_path = "/mnt/duke-netapp/asvetlove/plankton_results/job_37227920/checkpoints/best_model.pth"
 config_path = "/mnt/duke-netapp/asvetlove/plankton_results/job_36471054/logs/config.json"
 volume_path = "/home/asvetlove/data/segmentation/inference_examples/POR_20to200_20231022_AM_01_epo_02/"
 

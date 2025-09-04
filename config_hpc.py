@@ -51,7 +51,7 @@ def setup_config():
             'validation_tiles': 30
         },
         'loss_specs': {
-            'wdice_weights': [1.0, 2.0],
+            'wdice_weights': [1.0, 1.0],
             'wdice_smooth': 1e-7,
             'focal_alpha': 0.22733153821514615,
             'focal_gamma': 3,
