@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=plankton_hpc
 #SBATCH --partition=gpu-el8
-#SBATCH --constraint=gpu=A100
+#SBATCH --constraint=gpu=H100
 #SBATCH --nodes=1
 #SBATCH --ntasks=14
 #SBATCH --gpus=1
