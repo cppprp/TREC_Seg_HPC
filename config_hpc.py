@@ -75,7 +75,7 @@ def setup_config():
         'data': {
             'voxel_size_nm': 650,
             'plankton_size_um': (20, 200),
-            'min_foreground_ratio': 0.2,
+            'min_foreground_ratio': 0.02,
             'normalisation_min': -0.01,
             'normalisation_max': 0.025,
         },

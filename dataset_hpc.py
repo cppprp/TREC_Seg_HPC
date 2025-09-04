@@ -48,7 +48,7 @@ class PlanktonDataset(Dataset):
             'total_samples': 0
         }
         # Pre-calculate valid patch locations for each volume
-        #self.valid_locations = self._find_valid_patch_locations()
+        self.valid_locations = self._find_valid_patch_locations()
 
     def __len__(self):
         return len(self.images) * self.samples_per_volume
@@ -72,7 +72,7 @@ class PlanktonDataset(Dataset):
                 continue
 
             # Sample grid of positions and check foreground content
-            step_size = min(self.patch_shape) // 4
+            step_size = min(self.patch_shape) // 2
 
             for z in range(0, max_z, step_size):
                 for y in range(0, max_y, step_size):
@@ -129,7 +129,7 @@ class PlanktonDataset(Dataset):
         """Skip to next volume if current has no valid patches"""
         vol_idx = index // self.samples_per_volume
         vol_stats = self.volume_stats[vol_idx]
-        '''# Find a volume with valid locations
+        # Find a volume with valid locations
         attempts = 0
         max_attempts = len(self.valid_locations)
 
@@ -149,10 +149,10 @@ class PlanktonDataset(Dataset):
             raise RuntimeError("No volumes with valid patches found!")
 
         # Weighted sampling based on foreground content
-        weights = np.array([loc[3] + 0.1 for loc in locations])
-        weights = weights / np.sum(weights)
+        #weights = np.array([loc[3] + 0.1 for loc in locations])
+        #weights = weights / np.sum(weights)
 
-        chosen_idx = np.random.choice(len(locations), p=weights)
+        chosen_idx = np.random.choice(len(locations)) #p=weights)
         z, y, x, _ = locations[chosen_idx]
 
         # Extract patches
@@ -164,8 +164,8 @@ class PlanktonDataset(Dataset):
                       x:x + self.patch_shape[2]]
         label_patch = label[z:z + self.patch_shape[0],
                       y:y + self.patch_shape[1],
-                      x:x + self.patch_shape[2]]'''
-        if not vol_stats['fg_ratios']:  # Empty volume
+                      x:x + self.patch_shape[2]]
+        '''if not vol_stats['fg_ratios']:  # Empty volume
             return self.__getitem__((index + 1) % len(self))
 
             # Just sample completely randomly - the class imbalance handling
@@ -185,14 +185,14 @@ class PlanktonDataset(Dataset):
                       x:x + self.patch_shape[2]]
 
         fg_ratio = np.sum(label_patch > 0) / label_patch.size
-
+'''
         # Convert to tensors and add channel dimension
         image_patch = torch.tensor(image_patch, dtype=torch.float32).unsqueeze(0)
         label_patch = torch.tensor(label_patch, dtype=torch.uint8).unsqueeze(0)
 
 
 
-        # Update stats
+        '''# Update stats
         self.sampling_stats['fg_ratios'].append(fg_ratio)
         self.sampling_stats['volume_usage'][vol_idx] += 1
         self.sampling_stats['total_samples'] += 1
@@ -222,7 +222,7 @@ class PlanktonDataset(Dataset):
             image_patch = transformed.image.tensor
             label_patch = transformed.label.tensor.squeeze(0)
         else:
-            label_patch = label_patch.squeeze(0)
+            label_patch = label_patch.squeeze(0)'''
 
 
         # Transform mask (create foreground/boundary targets)
