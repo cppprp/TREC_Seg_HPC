@@ -44,9 +44,3 @@ echo ""
 echo "🚀 STARTING HPC TRAINING"
 echo "========================"
 python train_flow_hpc.py 2>&1 | tee logs/training_${SLURM_JOB_ID}.log
-
-
-echo ""
-echo "========================"
-echo "🏁 TRAINING COMPLETED"
-echo "========================"

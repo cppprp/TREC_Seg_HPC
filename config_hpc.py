@@ -34,7 +34,7 @@ def setup_config():
             'learning_rate': 3e-5,
             'n_epochs': 200,
             'patch_shape': (128, 128, 128),
-            'samples_per_volume': 20,
+            'samples_per_volume': 30,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
             'loss': 'combined',
