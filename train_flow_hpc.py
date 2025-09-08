@@ -132,7 +132,7 @@ def main():
             patch_shape=config['training']['patch_shape'],
             transform=None,
             mask_transform=distance_mask_transform,
-            samples_per_volume=config['training']['samples_per_volume'],
+            samples_per_volume=config['validation']['validation_tiles'],
             min_foreground_ratio=config['data']['min_foreground_ratio']
         )
         '''val_dataset = TiledValidationDataset(

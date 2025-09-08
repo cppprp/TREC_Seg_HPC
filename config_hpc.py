@@ -48,7 +48,7 @@ def setup_config():
             'batch_size': 1,
             'halo': 16,
             'patch_shape': (128, 128, 128),
-            'validation_tiles': 30
+            'validation_tiles': 5
         },
         'loss_specs': {
             'wdice_weights': [1.0, 1.0],
