@@ -30,10 +30,10 @@ def setup_config():
             'final_activation': None
         },
         'training': {
-            'batch_size': 6,  # Optimized for A100
+            'batch_size': 2,  # Optimized for A100
             'learning_rate': 3e-5,
             'n_epochs': 200,
-            'patch_shape': (128, 128, 128),
+            'patch_shape': (256, 256, 256),
             'samples_per_volume': 30,
             'train_val_split': 0.8,
             'checkpoint_every': 20,
@@ -93,7 +93,7 @@ def setup_config():
             'log_model': True,
         },
         'logging': {
-            'log_images': True,
+            'log_images': False,
             'val_log_frequency': 10,
             'progress_log_frequency': 10,
             'num_samples_per_log': 2,
