@@ -3,9 +3,9 @@
 #SBATCH --partition=gpu-el8
 #SBATCH --constraint=gpu=H100
 #SBATCH --nodes=1
-#SBATCH --ntasks=14
+#SBATCH --ntasks=32
 #SBATCH --gpus=1
-#SBATCH --mem-per-gpu=128789
+#SBATCH --mem-per-gpu=193028
 #SBATCH --time=24:00:00
 #SBATCH --output=logs/plankton_%j.out
 #SBATCH --error=logs/plankton_%j.err
