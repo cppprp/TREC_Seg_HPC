@@ -35,7 +35,7 @@ def make_json_serializable(obj):
 
 
 def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
-                               optimizer, scheduler, n_epochs, device, save_dir, config):
+                               optimizer, scheduler, n_epochs, device, save_dir, config, batchrenorm_scheduler = None):
     """HPC-optimized training loop with mixed precision and advanced logging"""
 
     save_dir = Path(save_dir)
@@ -149,6 +149,9 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
             # Optimizer step with scaler
             scaler.step(optimizer)
             scaler.update()
+
+            if batchrenorm_scheduler:
+                batchrenorm_scheduler.step()
 
             # Record metrics
             train_losses.append(loss.item())
@@ -320,6 +323,12 @@ def run_enhanced_training_loop(model, train_loader, val_loader, loss_fn,
                 'hpc/batches_processed': total_batches_processed,
                 'hpc/avg_batch_time_ms': avg_batch_time * 1000,
             }
+            if batchrenorm_scheduler:
+                bounds = batchrenorm_scheduler.get_current_bounds()
+                log_dict.update({
+                    'batchrenorm/rmax': bounds['rmax'],
+                    'batchrenorm/dmax': bounds['dmax'],
+                    'batchrenorm/step': bounds['step']})
 
             wandb.log(log_dict)
         except Exception as e:

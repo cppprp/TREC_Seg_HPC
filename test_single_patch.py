@@ -122,7 +122,7 @@ def analyze_model_attention(model, patch, save_path, pos=None):
     print(f"Attention range: {attention_map[mid_z].min():.6f} to {attention_map[mid_z].max():.6f}")
     print(f"Prediction range: {pred_fg_slice.min():.4f} to {pred_fg_slice.max():.4f}")
 
-def test_single_patch(model_path, config_path, volume_path, x,y,z):
+def test_single_patch(model_path, config_path, volume_path, x,y,z, save):
     """Test model on a single 128^3 patch"""
 
     # Load model
@@ -156,9 +156,9 @@ def test_single_patch(model_path, config_path, volume_path, x,y,z):
     boundary = probs[0, 1].cpu().numpy()
 
     # Save results
-    tifffile.imwrite(f'test/single_patch_input{z}_{y}_{x}.tif', patch)
-    tifffile.imwrite(f'test/single_patch_foreground{z}_{y}_{x}.tif', foreground)
-    tifffile.imwrite(f'test/single_patch_boundary{z}_{y}_{x}.tif', boundary)
+    tifffile.imwrite(save+ f'/single_patch_input{z}_{y}_{x}.tif', patch)
+    tifffile.imwrite(save +f'/single_patch_foreground{z}_{y}_{x}.tif', foreground)
+    tifffile.imwrite(save + f'/single_patch_boundary{z}_{y}_{x}.tif', boundary)
 
     print(f"Logit range: {logits.min().item():.2f} to {logits.max().item():.2f}")
     print(f"Probability range: {probs.min().item():.4f} to {probs.max().item():.4f}")
@@ -168,10 +168,12 @@ def test_single_patch(model_path, config_path, volume_path, x,y,z):
 
 
 # Usage
-model_path = "/mnt/duke-netapp/asvetlove/plankton_results/job_37227920/checkpoints/best_model.pth"
-config_path = "/mnt/duke-netapp/asvetlove/plankton_results/job_36471054/logs/config.json"
+ID  =  37227920
+model_path = f"/mnt/duke-netapp/asvetlove/plankton_results/job_{ID}/checkpoints/best_model.pth"
+config_path = f"/mnt/duke-netapp/asvetlove/plankton_results/job_{ID}/logs/config.json"
 volume_path = "/home/asvetlove/data/segmentation/inference_examples/POR_20to200_20231022_AM_01_epo_02/"
-
+output_dir = f"/mnt/duke-netapp/asvetlove/plankton_results/job_{ID}/tests/"
+os.makedirs(output_dir, exist_ok=True)
 # Test center patch
 patch_coords = (200, 1000, 1000)  # Pick coordinates with plankton
 x = [1355,
@@ -208,22 +210,23 @@ z=[324,
 324,
 324]
 #for _x,_y,_z in zip(x, y, z):
-    #test_single_patch(model_path, config_path, volume_path, _x,_y,_z)
+#    test_single_patch(model_path, config_path, volume_path, _x,_y,_z, output_dir)
 model = load_trained_model(model_path, config_path)
 model.eval()
 patch = tifffile.imread('/home/asvetlove/PycharmProjects/TREC_seg_unet/data/ml_patches/POR_20o200_20231022_AM_01_epo_01/patch_0002.tif')
-patch = patch[95:(95+128), 0:(0+128), 0:(0+128)]
-#synthetic_volume = np.array((128, 128, 128), dtype='float32')
-#vol = np.random.normal(scale=20, size=30)
-#synthetic_volume= synthetic_volume+vol
-#synthetic_volume[40:80, 40:80, 40:80] = float(0.82)  # Bright cube
-#synthetic_volume[40:80, 40:80, 40:80] = float(0.05)  # Bright cube
-analyze_model_attention(model, patch, '/home/asvetlove/data/segmentation/training_test_top_corn', pos=72)
+tile_dim = 128
+pos_test_1 = [242,380,250]
+false_pos_test_1 = [95,0,0]
+patch_pos = patch[pos_test_1[0]:(pos_test_1[0]+tile_dim),pos_test_1[1]:(pos_test_1[1]+tile_dim),pos_test_1[2]:(pos_test_1[2]+tile_dim)]
+patch_false_pos = patch[false_pos_test_1[0]:(false_pos_test_1[0]+tile_dim),false_pos_test_1[1]:(false_pos_test_1[1]+tile_dim),false_pos_test_1[2]:(false_pos_test_1[2]+tile_dim)]
+
+analyze_model_attention(model, patch_false_pos, output_dir+'training_false_pos_test', pos=72)
+analyze_model_attention(model, patch_pos, output_dir+'training_pos_test', pos=2)
 
 # Run comprehensive test
-#synthetic_tests = test_feature_discrimination()
+synthetic_tests = test_feature_discrimination()
 
-#for i, (vol, lbl) in enumerate(synthetic_tests):
- #   print(f"Test {i + 1}: Ground truth has {np.sum(lbl)} positive pixels")
-#    # Run through your attention analysis
- #   analyze_model_attention(model, vol, f'/home/asvetlove/data/segmentation/synthetic_test_{i + 1}.png')
+for i, (vol, lbl) in enumerate(synthetic_tests):
+    print(f"Test {i + 1}: Ground truth has {np.sum(lbl)} positive pixels")
+#   # Run through your attention analysis
+    analyze_model_attention(model, vol, output_dir + f'/synthetic_test_{i + 1}.png')

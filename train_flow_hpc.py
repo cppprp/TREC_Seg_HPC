@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 
+from beatchrenorm import BatchRenormScheduler
 from dataset_hpc import TiledValidationDataset, report_epoch_sampling_stats, distance_mask_transform
 from model_hpc import create_loss_type
 
@@ -182,6 +183,17 @@ def main():
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode=config['scheduler']['mode'], factor=config['scheduler']['factor'], patience=config['scheduler']['patience'], verbose=True
         )
+        batches_per_epoch = len(train_loader)
+        start_step = 5 * batches_per_epoch  # Start relaxing after 5 epochs
+        rmax_step = 40 * batches_per_epoch  # Full rmax at epoch 40
+        dmax_step = 25 * batches_per_epoch  # Full dmax at epoch 25
+
+        batchrenorm_scheduler = BatchRenormScheduler(
+            model,
+            start_step=start_step,
+            rmax_step=rmax_step,
+            dmax_step=dmax_step
+        )
 
         print("✅ Model, loss, and optimizer ready")
 
@@ -199,7 +211,8 @@ def main():
             n_epochs=config['training']['n_epochs'],
             device=device,
             save_dir=config['paths']['model'],
-            config=config
+            config=config,
+            batchrenorm_scheduler = batchrenorm_scheduler
         )
 
         training_time = time.time() - training_start

@@ -27,7 +27,8 @@ def setup_config():
             'in_channels': 1,
             'out_channels': 2,
             'initial_features': 32,
-            'final_activation': None
+            'final_activation': None,
+            'norm': 'BatchRenorm'
         },
         'training': {
             'batch_size': 2,  # Optimized for A100
